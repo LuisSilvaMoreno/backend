@@ -2,6 +2,7 @@ const {request, response} = require('express');
 const usermodels = require('../models/users');
 const pool=require('../db');
 
+
 const listUsers = async (req = request, res = response) => {
     let conn; 
 
@@ -14,8 +15,6 @@ const listUsers = async (req = request, res = response) => {
         }
     });
 
- 
-
     res.json(users);
     } catch (error){
         console.log(error);
@@ -25,28 +24,33 @@ const listUsers = async (req = request, res = response) => {
     }
     
 }
-   
-const listUserByID =async (req = request, res = response) =>{
-    const {id}=req.params;
 
-    if(isNaN(id)){
-        res.status(404 ).json({msg: 'invalid ID'});
+const listUsersByID = async (req = request, res = response) => {
+    const {id} = req.params;
+
+    if (isNaN(id)) {
+        res.status(400).json({msg: 'Invalid ID'});
         return;
     }
+
+
     let conn; 
 
     try{
         conn = await pool.getConnection();
 
-    const user = await conn.query (usermodels.getByID, [id],(err)=>{
+    const [user] = await conn.query (usermodels.getByID, [id], (err)=>{
         if(err){
             throw err
         }
     });
-    if (!user){
-        res.status(404).json({msg: 'User not found'});
+
+    if (!user) {
+        res.status(404).json({msg: 'User not foud'});
         return;
     }
+    
+    
     res.json(user);
     } catch (error){
         console.log(error);
@@ -56,44 +60,60 @@ const listUserByID =async (req = request, res = response) =>{
     }
 }
 
-const addUser = async (req = request, res =response)=>{
+const addUser =async(req = request, res= response)=>{
+    let conn;
     const {
         username,
-     email,
-     password,
-     name,
-     lastname,
-     phone_number ='',
-     role_id,
-     is_active = 1
+        email,
+        password,
+        name,
+        lastname,
+        phone_num ='',
+        role_id,
+        id_active =1,
     } = req.body;
+    if (!username|| !email|| !password|| !name|| !lastname|| !role_id){
+res.status(400).json({msg:'Missing informarion'});
+return;
+        }
+        const user= [username, email, password, name, lastname, phone_num, role_id, id_active ]
+    
+    try {
+        conn = await pool.getConnection();
+        
+        const [usernameUser] = await conn.query(
+            usermodels.getByUsername,
+            [username],
+            (err) => {if (err) throw err;}
+        );
+        if (usernameUser){
+            res.status(409).json({msg:`User with username ${username} already exists`});
+            return;
+        }
 
-   
-  
-    if(!username || !email || !password || !name || !lastname ||!role_id){
-        res.status(400).json ({msg: 'Missing information'});
-        return;
-    }
+        const [emailUser] = await conn.query(
+            usermodels.getByEmail,
+            [email],
+            (err) => {if (err) throw err;}
+        );
+        if (emailUser){
+            res.status(409).json({msg:`User with email ${email} already exists`});
+            return;
+        }
 
-    const user =[username, email, password, name, lastname, phone_number, role_id, is_active]
+        
+        const userAdded = await conn.query(usermodels.addRow,[...user],(err)=>{
 
-    let conn;
-
-    try{
-        conn= await pool.getConnection();
-
-const userAdded = await conn.query(usermodels.addRow, [...user], (err) => {
-  if (err)throw err;
-});
-
-console.log(userAdded);
-res.json(userAdded);
+        })
+        
+        if (userAdded.affecteRows === 0) throw new Error ({msg:'Failed to add user'});
+        res.json({msg:'User add succesfully'});
     }catch(error){
-      console.log(error);
-      res.status(500).json(error);
-    }finally{
-    if (conn) conn.end();
-}
+console.log(error);
+res.status(500).json(error);
+    } finally {
+        if (conn) conn.end();
+    }
 }
 
-module.exports={listUsers, listUserByID, addUser};
+module.exports={listUsers, listUsersByID, addUser};
