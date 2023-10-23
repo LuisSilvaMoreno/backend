@@ -116,4 +116,220 @@ res.status(500).json(error);
     }
 }
 
-module.exports={listUsers, listUsersByID, addUser};
+
+const updateUser=async(req, res)=>{
+  const {
+      username,
+      email,
+      password,
+      name,
+      lastname,
+      phone_num ,
+      role_id,
+      id_active ,
+  } = req.body;
+
+const {id} = req.params;
+let newUserData=[
+  username,
+  email,
+  password,
+  name,
+  lastname,
+  phone_num ,
+  role_id,
+  id_active   
+];
+let conn;
+try{
+  conn = await pool.getConnection();
+const [userExists]=await conn.query(
+  usermodels.getByID,
+  [id],
+  (err) => {if (err) throw err;}
+);
+if (!userExists || userExists.id_active === 0){
+  res.status(404).json({msg:'User not found'});
+  return;
+}
+
+const [usernameUser] = await conn.query(
+  usermodels.getByUsername,
+  [username],
+  (err) => {if (err) throw err;}
+);
+if (usernameUser){
+  res.status(409).json({msg:`User with username ${username} already exists`});
+  return;
+}
+
+const [emailUser] = await conn.query(
+  usermodels.getByEmail,
+  [email],
+  (err) => {if (err) throw err;}
+);
+if (emailUser){
+  res.status(409).json({msg:`User with email ${email} already exists`});
+  return;
+}
+
+const oldUserData = [
+  userExists.username,
+  userExists.email,
+  userExists.password,
+  userExists.name,
+  userExists.lastname,
+  userExists.phone_num ,
+  userExists.role_id,
+  userExists.id_active  
+];
+
+newUserData.forEach((userData, index)=> {
+  if (!userData){
+      newUserData[index] = oldUserData[index];
+  }
+})
+
+const userUpdate = await conn.query(
+  usermodels.updateUser,
+  [...newUserData, id],
+  (err) => {if (err) throw err;}
+);
+if(userUpdate.affecteRows === 0){
+  throw new Error ('User not updated');
+}
+res.json({msg:'User updated successfully'})
+}catch (error){
+      console.log(error);
+      res.status(500).json(error);
+  } finally{
+      if (conn) conn.end();
+  }
+}
+
+
+////////////////////////////////////
+/*
+const updateUser = async (req, res) => {
+    const { id } = req.params;
+    const userData = req.body; // Actualiza datos
+  
+    if (!userData || Object.keys(userData).length === 0) {
+      return res.status(400).json({ msg: 'No data provided for update' });
+    }
+  
+    let conn;
+    try {
+      conn = await pool.getConnection();
+  
+      //Aqui se verifica si el usuario esta verificado
+      const [existingUser] = await conn.query(usermodels.getByID, [id]);
+      if (!existingUser) {
+        return res.status(404).json({ msg: 'User not found' });
+      }
+  
+      // Realiza las validaciones,por ejemplo que el correo o el nombre de usuario no estén en uso
+      
+      if (userData.username) {
+        const [existingUserByUsername] = await conn.query(
+            usermodels.getByUsername,
+          [userData.username]
+        );
+        if (existingUserByUsername && existingUserByUsername.id !== id) {
+          return res.status(409).json({ msg: 'Username already in use' });
+        }
+      }
+      if (userData.email) {
+        const [existingUserByEmail] = await conn.query(
+            usermodels.getByEmail,
+          [userData.email]
+        );
+        if (existingUserByEmail && existingUserByEmail.id !== id) {
+          return res.status(409).json({ msg: 'Email already in use' });
+        }
+      }
+  
+      // Realiza la actualización de los campos permitidos
+      const allowedFields = ['username', 'email', 'password', 'name', 'lastname', 'phone_number', 'id_active','role_id'];
+      const updateData = {};
+  
+      allowedFields.forEach((field) => {
+        if (userData[field] !== undefined) {
+          updateData[field] = userData[field];
+        }
+      });
+  
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ msg: 'No valid fields to update' });
+      }
+  
+      // Utiliza la consulta updateUser actualizar
+      const result = await conn.query(
+        usermodels.updateUser,
+        [//actualiza los datos de la tabla
+          updateData.username,
+          updateData.email,
+          updateData.password, 
+          updateData.name,
+          updateData.lastname,
+          updateData.phone_number,
+          updateData.role_id,
+          updateData.id_active,
+          id
+        ]
+      );
+  
+      if (result.affectedRows === 0) {
+        return res.status(500).json({ msg: 'Failed to update user' });
+      }
+  
+      return res.json({ msg: 'User updated successfully' });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json(error);
+    } finally {
+      if (conn) conn.end();
+    }
+  };*/
+
+
+  const deleteUser = async (req, res)=>{
+    let conn;
+
+    try{
+        conn = await pool.getConnection();
+        const {id} =req.params;
+        const [userExists] =await conn.query(
+            usermodels.getByID,
+            [id],
+            (err) => {if (err) throw err;}
+        );
+        if(!userExists || userExists.id_active === 0){
+            res.status(404).json({msg:'User not Found'});
+            return;
+        }
+
+        const userDelete = await conn.query(
+            usermodels.deleteRow,
+            [id],
+            (err) => {if(err)throw err;}
+        );
+        if (userDelete.affecteRows===0){
+            throw new Error({msg:'failed to delete user'})
+        };
+        res.json({msg:'user deleted succesfully'});
+    }catch(error){
+        console.log(error);
+        res.status(500).json(error);
+
+    }finally{
+       if(conn) conn.end(); 
+    }
+}
+
+
+
+
+
+
+module.exports={listUsers, listUsersByID, addUser, updateUser,deleteUser};
